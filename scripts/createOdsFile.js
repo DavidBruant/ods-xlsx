@@ -4,6 +4,8 @@ import JSZip from 'jszip'
 
 /** @import {SheetName, SheetRawContent, SheetRowRawContent, SheetCellRawContent} from './types.js' */
 
+const officeVersion = '1.3'
+
 /**
  * Crée un fichier .ods à partir d'un Map de feuilles de calcul
  * @param {Map<SheetName, SheetRawContent>} sheetsData 
@@ -14,22 +16,45 @@ import JSZip from 'jszip'
 export async function _createOdsFile(sheetsData, parseXML, serializeXML) {
     const zip = new JSZip();
 
+    /* Ces fichiers incluent 
+    x mimetype, 
+    x content.xml, 
+     meta.xml, 
+    x styles.xml et 
+    x META-INF/manifest.xml
+
+    */
+
     // Ajout des fichiers nécessaires au .ods
     zip.file('mimetype', 'application/vnd.oasis.opendocument.spreadsheet');
     
     const contentXml = createContentXml(sheetsData, parseXML, serializeXML);
     zip.file('content.xml', contentXml);
     
+    const stylesXml = createStylesXml(undefined, parseXML, serializeXML);
+    zip.file('styles.xml', stylesXml);
+    
+    const metaXml = createMetaXml(undefined, parseXML, serializeXML);
+    zip.file('meta.xml', metaXml);
+    
     const files = new Map([
         ['/', 'application/vnd.oasis.opendocument.spreadsheet'],
-        ['/content.xml', 'text/xml']
+        ['/content.xml', 'text/xml'],
+        ['/styles.xml', 'text/xml'],
+        ['/meta.xml', 'text/xml']
     ]);
 
     const manifestXml = createManifestXml(parseXML, serializeXML, files);
     zip.file('META-INF/manifest.xml', manifestXml);
 
     // Génération du fichier .ods
-    const odsContent = await zip.generateAsync({ type: 'uint8array' });
+    const odsContent = await zip.generateAsync({ 
+        type: 'uint8array',
+        compression: "DEFLATE",
+        compressionOptions: {
+            level: 2
+        }
+    });
     return odsContent;
 }
 
@@ -42,7 +67,8 @@ export async function _createOdsFile(sheetsData, parseXML, serializeXML) {
  */
 function createContentXml(sheetsData, parseXML, serializeXML) {
     const doc = parseXML(
-        '<?xml version="1.0" encoding="UTF-8"?><office:document-content></office:document-content>'
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <office:document-content></office:document-content>`
     );
     
     const root = doc.documentElement;
@@ -99,6 +125,55 @@ function createRowElement(doc, rowContent, rowIndex) {
     return row;
 }
 
+/**
+ * Crée le contenu XML pour le fichier styles.xml
+ * @param {any} _styles 
+ * @param {(str: string) => Document} parseXML - Function to parse XML content.
+ * @param {(doc: Document) => string} serializeXML - Function to parse XML content.
+ * @returns {string}
+ */
+function createStylesXml(_styles, parseXML, serializeXML) {
+    const doc = parseXML(
+        `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles>
+  <office:styles>
+  </office:styles>
+</office:document-styles>`
+    );
+
+    const root = doc.documentElement;
+    setNamespaces(root);
+    
+    // PPP rajouter les styles
+    
+    return serializeXML(doc);
+}
+
+/**
+ * Crée le contenu XML pour le fichier styles.xml
+ * @param {any} _metadata 
+ * @param {(str: string) => Document} parseXML - Function to parse XML content.
+ * @param {(doc: Document) => string} serializeXML - Function to parse XML content.
+ * @returns {string}
+ */
+function createMetaXml(_metadata, parseXML, serializeXML) {
+    const doc = parseXML(
+        `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta>
+  <office:meta>
+    <meta:generator>https://github.com/DavidBruant/ods-xlsx</meta:generator>
+    <meta:creation-date>${(new Date()).toISOString()}</meta:creation-date>
+  </office:meta>
+</office:document-meta>`
+    );
+    
+    const root = doc.documentElement;
+    setNamespaces(root);
+
+    // PPP rajouter les meta-donnée
+    
+    return serializeXML(doc);
+}
 
 /**
  * Convertit les types Excel et ODS en type ODS standard
@@ -225,7 +300,7 @@ function setNamespaces(root) {
         root.setAttribute(`xmlns:${prefix}`, uri);
     }
 
-    root.setAttribute('office:version', '1.2');
+    root.setAttribute('office:version', officeVersion);
 }
 
 /**
