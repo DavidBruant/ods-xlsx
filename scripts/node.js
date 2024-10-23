@@ -1,24 +1,17 @@
 //@ts-check
 
-import {DOMParser, XMLSerializer} from '@xmldom/xmldom'
+import {DOMParser} from '@xmldom/xmldom'
 
 import {
     _getODSTableRawContent, 
     _getXLSXTableRawContent
 } from './shared.js'
 
-import {_createOdsFile} from './createOdsFile.js'
-
-/** @import {SheetName, SheetRawContent} from './types.js' */
-
 
 function parseXML(str){
     return (new DOMParser()).parseFromString(str, 'application/xml');
 }
 
-function serializeXML(doc){
-    return (new XMLSerializer()).serializeToString(doc);
-}
 
 /**
  * @param {ArrayBuffer} odsArrBuff
@@ -36,15 +29,7 @@ export function getXLSXTableRawContent(xlsxArrBuff){
     return _getXLSXTableRawContent(xlsxArrBuff, parseXML)
 }
 
-/**
- * Crée un fichier .ods à partir d'un Map de feuilles de calcul
- * @param {Map<SheetName, SheetRawContent>} sheetsData
- * @returns {Promise<Uint8Array>}
- */
-export function createOdsFile(sheetsData){
-    return _createOdsFile(sheetsData, parseXML, serializeXML)
-}
-
+export {createOdsFile} from './createOdsFile.js'
 
 export {
     // table-level exports
