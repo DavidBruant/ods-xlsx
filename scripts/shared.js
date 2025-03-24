@@ -65,7 +65,7 @@ export async function _getODSTableRawContent(arrayBuffer, parseXML) {
     const contentXmlEntry = entryByFilename.get('content.xml')
 
     if(!contentXmlEntry){
-        throw new TypeError(`entry 'xl/sharedStrings.xml' manquante dans le zip`)
+        throw new TypeError(`entry 'content.xml' manquante dans le zip`)
     }
 
     // Extract the content.xml file which contains the spreadsheet data
