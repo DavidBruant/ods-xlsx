@@ -28,7 +28,6 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.8.10",
-    "@zip.js/zip.js": "^2.7.57",
-    "xlsx": "^0.18.5"
+    "@zip.js/zip.js": "^2.7.57"
   }
 }
