@@ -1,7 +1,6 @@
-import {ZipWriter, BlobWriter, TextReader} from '@zip.js/zip.js';
-import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
+import { ZipWriter, BlobWriter, TextReader } from '@zip.js/zip.js';
 
-/** @import {SheetName, SheetRawContent} from './types.js' */
+/** @import {SheetCellRawContent, SheetName, SheetRawContent} from './types.js' */
 
 const stylesXml = `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-styles 
@@ -23,25 +22,27 @@ const manifestXml = `<?xml version="1.0" encoding="UTF-8"?>
 /**
  * Crée un fichier .ods à partir d'un Map de feuilles de calcul
  * @param {Map<SheetName, SheetRawContent>} sheetsData
+ * @param {typeof DOMImplementation.prototype.createDocument} createDocument 
+ * @param {typeof XMLSerializer.prototype.serializeToString} serializeToString 
  * @returns {Promise<ArrayBuffer>}
  */
-export async function createOdsFile(sheetsData) {
+export async function _createOdsFile(sheetsData, createDocument, serializeToString) {
     // Create a new zip writer
     const zipWriter = new ZipWriter(new BlobWriter('application/vnd.oasis.opendocument.spreadsheet'));
-    
+
     zipWriter.add(
         "mimetype",
         new TextReader("application/vnd.oasis.opendocument.spreadsheet"),
         {
-          compressionMethod: 0,
-          level: 0,
-          dataDescriptor: false,
-          extendedTimestamp: false,
+            compressionMethod: 0,
+            level: 0,
+            dataDescriptor: false,
+            extendedTimestamp: false,
         }
     );
 
-    const contentXml = generateContentFileXMLString(sheetsData);
-    zipWriter.add("content.xml", new TextReader(contentXml));
+    const contentXml = generateContentFileXMLString(sheetsData, createDocument, serializeToString);
+    zipWriter.add("content.xml", new TextReader(contentXml), {level: 9});
 
     zipWriter.add("styles.xml", new TextReader(stylesXml));
 
@@ -56,11 +57,12 @@ export async function createOdsFile(sheetsData) {
 /**
  * Generate the content.xml file with spreadsheet data
  * @param {Map<SheetName, SheetRawContent>} sheetsData 
+ * @param {typeof DOMImplementation.prototype.createDocument} createDocument 
+ * @param {typeof XMLSerializer.prototype.serializeToString} serializeToString 
  * @returns {string}
  */
-function generateContentFileXMLString(sheetsData) {
-    const impl = new DOMImplementation();
-    const doc = impl.createDocument('urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'office:document-content');
+function generateContentFileXMLString(sheetsData, createDocument, serializeToString) {
+    const doc = createDocument('urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'office:document-content');
     const root = doc.documentElement;
 
     // Set up namespaces
@@ -132,13 +134,13 @@ function generateContentFileXMLString(sheetsData) {
         });
     });
 
-    return new XMLSerializer().serializeToString(doc);
+    return serializeToString(doc);
 }
 
 /**
  * Convert cell type to OpenDocument format type
- * @param {string} type 
- * @returns {string}
+ * @param {SheetCellRawContent['type']} type 
+ * @returns {SheetCellRawContent['type']}
  */
 function convertCellType(type) {
     const typeMap = {
