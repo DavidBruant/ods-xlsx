@@ -40,21 +40,31 @@ export async function getOdtTextContent(odtFile) {
         }
         
         // Extract the content.xml as text
+        // @ts-ignore
         const contentText = await contentEntry.getData(new TextWriter());
         
         // Parse the XML to extract plain text
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(contentText, 'text/xml');
         
-        // Extract text from text:p elements, preserving paragraphs
-        const paragraphs = xmlDoc.getElementsByTagName('text:p');
-        const textLines = Array.from(paragraphs).map(p => p.textContent || '');
+        // Extract all relevant elements in order
+        const elements = xmlDoc.getElementsByTagName('office:body')[0]
+            .getElementsByTagName('office:text')[0]
+            .childNodes;
+        
+        const extractedTexts = Array.from(elements)
+            .filter(el => 
+                el.nodeType === el.ELEMENT_NODE &&
+                (el.tagName === 'text:h' || 
+                el.tagName === 'text:p')
+            )
+            .map(el => el.textContent)
         
         // Close the zip reader
         await reader.close();
         
         // Join paragraphs with newlines to preserve structure
-        return textLines.join('\n');
+        return extractedTexts.join('\n');
     } catch (error) {
         console.error('Error extracting ODT content:', error);
         throw error;
