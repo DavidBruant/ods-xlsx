@@ -1,14 +1,14 @@
 import test from 'ava';
+import {join} from 'node:path';
 
-import {fillOdtTemplate} from '../scripts/fillOdtTemplate.js'
+import {fillOdtTemplate, getOdtTemplate, getOdtTextContent} from '../scripts/fillOdtTemplate.js'
 
-/** @import {SheetName, SheetRawContent} from '../scripts/types.js' */
-
-const templatePath = './data/template-anniversaire.odt'
+const templatePath = join(import.meta.dirname, './data/template-anniversaire.odt')
 const templateContent = `Yo {nom} ! 
 Tu es né.e le {dateNaissance}
 
 Bonjoir ☀️`
+
 
 test('basic template filling', async t => {
 	const data = {
@@ -19,6 +19,7 @@ test('basic template filling', async t => {
     const odtTemplate = await getOdtTemplate(templatePath)
 
     const templateTextContent = await getOdtTextContent(odtTemplate)
+    console.log('templateTextContent', templateTextContent)
     t.deepEqual(templateTextContent, templateContent)
 
     const odtResult = await fillOdtTemplate(odtTemplate, data)
