@@ -3,6 +3,16 @@
 Small lib to parse/understand .ods and .xsls files in the browser and node.js
 
 
+## Rough roadmap
+
+- [ ] add odt templating
+- [ ] remove support for xlsx
+- [ ] add a .ods minifyier
+- [ ] add a generic .ods visualizer
+- [ ] move to a dedicated odf docs org
+- [ ] add a quick .odt visualiser (maybe converting to markdown first?)
+
+
 ## Usage
 
 ### Install
@@ -12,9 +22,7 @@ npm i https://github.com/DavidBruant/ods-xlsx.git#v0.11.0
 ```
 
 
-### Usage
-
-#### Basic - reading an ods/xlsx file
+### Basic - reading an ods/xlsx file
 
 ```js
 import {tableRawContentToObjects, tableWithoutEmptyRows, getODSTableRawContent} from 'ods-xlsx'
@@ -72,7 +80,7 @@ const ods = await createOdsFile(content)
 (and there is a tool to test file creation:
 `node tools/create-an-ods-file.js > yo.ods`)
 
-#### Low-level
+### Low-level
 
 See exports
 
@@ -87,6 +95,8 @@ https://davidbruant.github.io/ods-xlsx/
 npm install
 npm run dev
 ```
+
+
 
 
 ## Expectations and licence
