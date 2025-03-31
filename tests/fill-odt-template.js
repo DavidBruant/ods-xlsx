@@ -11,8 +11,6 @@ Bonjoir ☀️`
 
 
 test('basic template filling', async t => {
-    t.timeout(1500)
-
 	const data = {
         nom: 'David Bruant',
         dateNaissance: '8 mars 1987'
@@ -21,7 +19,6 @@ test('basic template filling', async t => {
     const odtTemplate = await getOdtTemplate(templatePath)
 
     const templateTextContent = await getOdtTextContent(odtTemplate)
-    console.log('templateTextContent', templateTextContent)
     t.deepEqual(templateTextContent, templateContent)
 
     const odtResult = await fillOdtTemplate(odtTemplate, data)

@@ -289,16 +289,13 @@ async function transformOdt(odtTemplate, data) {
 
     // Parcourir chaque entrée du fichier ODT
     for (const entry of entries) {
-        console.log('entry', entry.filename)
+        //console.log('entry', entry.filename)
 
         if (entry.filename === "content.xml") {
             // Si l'entrée est content.xml, nous la modifions avec la fonction updateOdtContent
             const contentXml = await entry.getData(new TextWriter());
-            console.log('contentXml', contentXml)
             
             const updatedContentXml = fillOdtContent(contentXml, data);
-
-            console.log('updatedContentXml', updatedContentXml)
 
             // Ajouter le content.xml modifié au nouveau zip
             await writer.add(entry.filename, new TextReader(updatedContentXml), {
@@ -334,11 +331,7 @@ async function transformOdt(odtTemplate, data) {
  * @returns {Promise<ODTFile>}
  */
 export async function fillOdtTemplate(odtTemplate, data) {
-    const res = await transformOdt(odtTemplate, data)
-
-    console.log('res', res)
-
-    return res;
+    return transformOdt(odtTemplate, data)
 }
 
 
