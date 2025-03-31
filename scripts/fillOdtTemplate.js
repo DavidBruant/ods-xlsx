@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
-import { ZipReader, ZipWriter, BlobReader, BlobWriter, TextReader, Uint8ArrayReader, TextWriter, ZipReaderStream, ZipWriterStream } from '@zip.js/zip.js';
+import { ZipReader, ZipWriter, BlobReader, BlobWriter, TextReader, Uint8ArrayReader, TextWriter, ZipReaderStream, ZipWriterStream, Uint8ArrayWriter } from '@zip.js/zip.js';
 import { DOMParser, Node, XMLSerializer } from '@xmldom/xmldom';
 
 
@@ -279,56 +279,51 @@ async function readableStreamToArrayBuffer(readableStream) {
  */
 async function transformOdt(odtTemplate, data) {
 
-    const inputStream = new ReadableStream({
-        start(controller) {
-            controller.enqueue(new Uint8Array(odtTemplate));
-            controller.close();
+    const reader = new ZipReader(new Uint8ArrayReader(new Uint8Array(odtTemplate)));
+
+    // Lire toutes les entrées du fichier ODT
+    const entries = await reader.getEntries();
+
+    // Créer un ZipWriter pour le nouveau fichier ODT
+    const writer = new ZipWriter(new Uint8ArrayWriter());
+
+    // Parcourir chaque entrée du fichier ODT
+    for (const entry of entries) {
+        console.log('entry', entry.filename)
+
+        if (entry.filename === "content.xml") {
+            // Si l'entrée est content.xml, nous la modifions avec la fonction updateOdtContent
+            const contentXml = await entry.getData(new TextWriter());
+            console.log('contentXml', contentXml)
+            
+            const updatedContentXml = fillOdtContent(contentXml, data);
+
+            console.log('updatedContentXml', updatedContentXml)
+
+            // Ajouter le content.xml modifié au nouveau zip
+            await writer.add(entry.filename, new TextReader(updatedContentXml), {
+                lastModDate: entry.lastModDate,
+                level: 9
+            });
+        } else {
+            // Pour les autres fichiers, les copier tels quels
+            const blobWriter = new BlobWriter();
+            await entry.getData(blobWriter);
+            const blob = await blobWriter.getData();
+
+            // Ajouter l'entrée non modifiée au nouveau zip
+            await writer.add(entry.filename, new BlobReader(blob), {
+                lastModDate: entry.lastModDate,
+                level: entry.filename === 'mimetype' ? 0 : 9
+            });
         }
-    });
+    }
 
-    // Créer un TransformStream qui modifie content.xml
-    const transformStream = new TransformStream({
-        async transform(entry, controller) {
-            console.log('entry', entry.filename)
+    // Fermer le reader
+    await reader.close();
 
-            if (entry.filename === "content.xml") {
-
-                // Récupérer le contenu XML
-                const contentXmlArrayBuffer = await readableStreamToArrayBuffer(entry.readable);
-
-                const encoder = new TextDecoder("utf-8");
-
-                const contentXml = encoder.decode(contentXmlArrayBuffer)
-                // Appliquer les modifications
-                const updatedContentXml = fillOdtContent(contentXml, data);
-
-                // Modifier l'entry pour qu'elle utilise le nouveau contenu
-                entry.readable = new ReadableStream({
-                    start(controller) {
-                        const enc = new TextEncoder();
-                        controller.enqueue(enc.encode(updatedContentXml));
-                        controller.close();
-                    }
-                });
-            }
-
-            // Envoyer l'entry (originale ou modifiée) au controller
-            controller.enqueue(entry);
-        }
-    });
-
-    // new Uint8ArrayReader(new Uint8Array(odtFile))
-    const outputZipWriter = new ZipWriterStream()
-
-
-    await inputStream
-        .pipeThrough(new ZipReaderStream())
-        .pipeThrough(transformStream)
-        .pipeTo(outputZipWriter.writable('blabla.zip'))
-
-
-    // Récupérer le résultat sous forme de Blob
-    return outputZipWriter.close()
+    // Générer et retourner le nouveau fichier ODT
+    return writer.close();
 }
 
 
