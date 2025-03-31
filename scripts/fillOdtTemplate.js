@@ -282,13 +282,13 @@ async function transformOdt(odtTemplate, data) {
     const reader = new ZipReader(new Uint8ArrayReader(new Uint8Array(odtTemplate)));
 
     // Lire toutes les entrées du fichier ODT
-    const entries = await reader.getEntries();
+    const entries = reader.getEntriesGenerator();
 
     // Créer un ZipWriter pour le nouveau fichier ODT
     const writer = new ZipWriter(new Uint8ArrayWriter());
 
     // Parcourir chaque entrée du fichier ODT
-    for (const entry of entries) {
+    for await (const entry of entries) {
         //console.log('entry', entry.filename)
 
         if (entry.filename === "content.xml") {
@@ -298,7 +298,7 @@ async function transformOdt(odtTemplate, data) {
             const updatedContentXml = fillOdtContent(contentXml, data);
 
             // Ajouter le content.xml modifié au nouveau zip
-            await writer.add(entry.filename, new TextReader(updatedContentXml), {
+            writer.add(entry.filename, new TextReader(updatedContentXml), {
                 lastModDate: entry.lastModDate,
                 level: 9
             });
@@ -309,7 +309,7 @@ async function transformOdt(odtTemplate, data) {
             const blob = await blobWriter.getData();
 
             // Ajouter l'entrée non modifiée au nouveau zip
-            await writer.add(entry.filename, new BlobReader(blob), {
+            writer.add(entry.filename, new BlobReader(blob), {
                 lastModDate: entry.lastModDate,
                 level: entry.filename === 'mimetype' ? 0 : 9
             });
