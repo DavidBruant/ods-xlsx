@@ -7,7 +7,7 @@ Small lib to parse/understand .ods and .xsls files in the browser and node.js
 
 - [ ] add odt templating
 - [ ] remove support for xlsx
-- [ ] add a .ods minifyier
+- [ ] add a .ods minifyer
 - [ ] add a generic .ods visualizer
 - [ ] move to a dedicated odf docs org
 - [ ] add a quick .odt visualiser (maybe converting to markdown first?)
