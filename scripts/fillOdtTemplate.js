@@ -63,19 +63,32 @@ export async function getOdtTextContent(odtFile) {
     const contentDocument = await getContentDocument(odtFile)
     const odtTextElement = getODTTextElement(contentDocument)
 
-    const extractedTexts = Array.from(odtTextElement.childNodes)
-        .filter(el => {
-            if (el.nodeType !== Node.ELEMENT_NODE)
-                return false
-            else
-                // @ts-ignore
-                return el.tagName === 'text:h' || el.tagName === 'text:p'
-        })
-        .map(el => el.textContent)
+    /**
+     * 
+     * @param {Element} element 
+     * @returns {string}
+     */
+    function getElementTextContent(element){
+        //console.log('tagName', element.tagName)
+        if(element.tagName === 'text:h' || element.tagName === 'text:p')
+            return element.textContent + '\n'
+        else{
+            const descendantTexts = Array.from(element.childNodes)
+                .filter(n => n.nodeType === Node.ELEMENT_NODE)
+                .map(getElementTextContent)
 
-    // Join paragraphs with newlines to preserve structure
-    return extractedTexts.join('\n');
+            if(element.tagName === 'text:list-item')
+                return `- ${descendantTexts.join('')}`
+
+            return descendantTexts.join('')
+        }
+    }
+
+    return getElementTextContent(odtTextElement)
 }
+
+
+
 
 // For a given string, split it into fixed parts and parts to replace
 
