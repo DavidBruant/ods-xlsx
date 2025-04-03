@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { ZipReader, ZipWriter, BlobReader, BlobWriter, TextReader, Uint8ArrayReader, TextWriter, ZipReaderStream, ZipWriterStream, Uint8ArrayWriter } from '@zip.js/zip.js';
 import { DOMParser, Node, XMLSerializer } from '@xmldom/xmldom';
 
+import {traverse} from './DOMUtils.js'
 
 // fillOdtTemplate, getOdtTemplate, getOdtTextContent
 
@@ -219,6 +220,186 @@ function findPlacesToFill(node) {
 }
 
 /**
+ * @param {Element} element 
+ */
+function findEachElementPair(element){
+
+    /** @type {Element | undefined} */
+    let startElement
+    /** @type {Element | undefined} */
+    let endElement
+
+    let iterableExpression, itemExpression;
+
+    traverse(element, el => {
+        //console.log('traverse', el.nodeType, el.nodeName)
+        if(Array.from(el.childNodes).some(n => n.nodeType === Node.ELEMENT_NODE)){
+            //console.log('skip')
+            // skip
+        }
+        else{
+            const text = el.textContent || ''
+            //console.log('text', text)
+
+            const eachStartRegex = /{#each\s+([^}]+?)\s+as\s+([^}]+?)\s*}/g;
+            const startMatches = [...text.matchAll(eachStartRegex)];
+
+            if(startMatches && startMatches.length >= 1){
+                // only consider first match and ignore others for now
+                let [_, _iterableExpression, _itemExpression] = startMatches[0]
+                
+                iterableExpression = _iterableExpression
+                itemExpression = _itemExpression
+                startElement = el
+            }
+
+            const eachEndRegex = /{\/each}/g
+            const endMatches = [...text.matchAll(eachEndRegex)];
+
+            if(endMatches && endMatches.length >= 1){
+                endElement = el
+            }
+        }
+    })
+
+    //console.log('startElement', startElement)
+
+    if(startElement && endElement){
+        return {
+            startElement, 
+            iterableExpression, 
+            itemExpression, 
+            endElement
+        }
+    }
+}
+
+
+
+/**
+ * 
+ * @param {Document} contentDocument 
+ * @param {any} data 
+ */
+function fillEachIfExists(contentDocument, data){
+    const eachElementPair = findEachElementPair(contentDocument)
+
+    if(eachElementPair){
+        const { iterableExpression, itemExpression, startElement, endElement } = eachElementPair
+
+        // find common ancestor
+        let commonAncestor
+
+        let startAncestor = startElement
+        let endAncestor = endElement
+        
+        const startAncestry = new Set([startAncestor])
+        const endAncestry = new Set([endAncestor]) 
+
+        while(!startAncestry.has(endAncestor) && !endAncestry.has(startAncestor)){
+            if(startAncestor.parentNode){
+                startAncestor = startAncestor.parentNode
+                startAncestry.add(startAncestor)
+            }
+            if(endAncestor.parentNode){
+                endAncestor = endAncestor.parentNode
+                endAncestry.add(endAncestor)
+            }
+        }
+
+        if(startAncestry.has(endAncestor)){
+            commonAncestor = endAncestor
+        }
+        else{
+            commonAncestor = startAncestor
+        }
+
+        //console.log('commonAncestor', commonAncestor.tagName)
+        //console.log('startAncestry', startAncestry.size, [...startAncestry].indexOf(commonAncestor))
+        //console.log('endAncestry', endAncestry.size, [...endAncestry].indexOf(commonAncestor))
+
+        const startAncestryToCommonAncestor = [...startAncestry].slice(0, [...startAncestry].indexOf(commonAncestor))
+        const endAncestryToCommonAncestor = [...endAncestry].slice(0, [...endAncestry].indexOf(commonAncestor))
+
+        const startChild = startAncestryToCommonAncestor.at(-1)
+        const endChild = endAncestryToCommonAncestor.at(-1)
+
+        //console.log('startChild', startChild.tagName)
+        //console.log('endChild', endChild.tagName)
+
+        // Find repeatable pattern and extract it in a documentFragment
+        const repeatedFragment = contentDocument.createDocumentFragment()
+
+        /** @type {Element[]} */
+        const repeatedPatternArray = []
+        let sibling = startChild.nextSibling
+
+        while(sibling !== endChild){
+            repeatedPatternArray.push(sibling)
+            sibling = sibling.nextSibling;
+        }
+
+        //console.log('repeatedPatternArray', repeatedPatternArray.length)
+
+        for(const sibling of repeatedPatternArray){
+            sibling.parentNode?.removeChild(sibling)
+            repeatedFragment.appendChild(sibling)
+        }
+
+        // Find the iterable in the data
+        // PPP eventually, evaluate the expression as a JS expression
+        const iterable = data[iterableExpression]
+        if(!iterable){
+            throw new TypeError(`Missing iterable (${iterableExpression})`)
+        }
+        if(typeof iterable[Symbol.iterator] !== 'function'){
+            throw new TypeError(`'${iterableExpression}' is not iterable`)
+        }
+
+        // create each loop result
+        // using a for-of loop to accept all iterable values
+        for(const item of iterable){
+            const itemFragment = repeatedFragment.cloneNode(true)
+            fillTemplateElementWithData(
+                // @ts-ignore
+                itemFragment, 
+                Object.assign({}, data, {[itemExpression]: item})
+            )
+            commonAncestor.insertBefore(itemFragment, endChild)
+        }
+
+        startChild.parentNode.removeChild(startChild)
+        endChild.parentNode.removeChild(endChild)
+    }
+    else{
+        // nothing
+    }
+}
+
+
+/**
+ * 
+ * @param {Node} element 
+ * @param {any} data 
+ * @returns {void}
+ */
+function fillTemplateElementWithData(element, data){
+    // trouver tous les endroits où il y a des choses à remplir
+    const placesToFill = findPlacesToFill(element)
+
+    if (placesToFill) {
+        //console.log('placesToFill', placesToFill)
+
+        // remplir tous les endroits à remplir
+        for (const placeToFill of placesToFill) {
+            placeToFill.fill(data)
+        }
+    }
+}
+
+
+
+/**
  * 
  * @param {string} contentXml 
  * @param {any} data 
@@ -231,57 +412,14 @@ function fillOdtContent(contentXml, data) {
 
     const odtTextElement = getODTTextElement(contentDocument)
 
-    // trouver tous les endroits où il y a des choses à remplir
-    const placesToFill = findPlacesToFill(odtTextElement)
+    fillEachIfExists(contentDocument, data) 
 
-    if (placesToFill) {
-        //console.log('placesToFill', placesToFill)
-
-        // remplir tous les endroits à remplir
-        for (const placeToFill of placesToFill) {
-            placeToFill.fill(data)
-        }
-    }
+    fillTemplateElementWithData(odtTextElement, data)
 
     const serializer = new XMLSerializer()
 
     return serializer.serializeToString(contentDocument)
 
-}
-
-/**
- * 
- * @param {ReadableStream} readableStream 
- * @returns {Promise<ArrayBuffer>}
- */
-async function readableStreamToArrayBuffer(readableStream) {
-    const reader = readableStream.getReader();
-    const chunks = [];
-
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-        }
-    } finally {
-        reader.releaseLock();
-    }
-
-    // Calculer la taille totale nécessaire
-    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-
-    // Créer un nouveau ArrayBuffer avec la taille totale
-    const result = new Uint8Array(totalLength);
-
-    // Copier tous les chunks dans le nouveau ArrayBuffer
-    let position = 0;
-    for (const chunk of chunks) {
-        result.set(chunk, position);
-        position += chunk.length;
-    }
-
-    return result.buffer;
 }
 
 
@@ -311,7 +449,7 @@ async function transformOdt(odtTemplate, data) {
             const updatedContentXml = fillOdtContent(contentXml, data);
 
             // Ajouter le content.xml modifié au nouveau zip
-            writer.add(entry.filename, new TextReader(updatedContentXml), {
+            await writer.add(entry.filename, new TextReader(updatedContentXml), {
                 lastModDate: entry.lastModDate,
                 level: 9
             });
@@ -322,9 +460,11 @@ async function transformOdt(odtTemplate, data) {
             const blob = await blobWriter.getData();
 
             // Ajouter l'entrée non modifiée au nouveau zip
-            writer.add(entry.filename, new BlobReader(blob), {
-                lastModDate: entry.lastModDate,
-                level: entry.filename === 'mimetype' ? 0 : 9
+            await writer.add(entry.filename, new BlobReader(blob), {
+                level: entry.filename === 'mimetype' ? 0 : 9,
+                compressionMethod: 0,
+                dataDescriptor: false,
+                extendedTimestamp: false,
             });
         }
     }

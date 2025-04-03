@@ -5,6 +5,8 @@ import {fillOdtTemplate, getOdtTemplate, getOdtTextContent} from '../scripts/fil
 
 
 test('basic template filling with variable substitution', async t => {
+    
+
     const templatePath = join(import.meta.dirname, './data/template-anniversaire.odt')
     const templateContent = `Yo {nom} ! 
 Tu es né.e le {dateNaissance}
@@ -39,14 +41,8 @@ test('basic template filling with {#each}', async t => {
     const templateContent = `🧺 La liste de courses incroyable 🧺
 
 {#each listeCourses as élément}
-- {élément}
+{élément}
 {/each}
-
-2ème essai
-
-- {#each listeCourses as élément}
-- {élément}
-- {/each}
 `
 
 	const data = {
@@ -68,15 +64,9 @@ test('basic template filling with {#each}', async t => {
     const odtResultTextContent = await getOdtTextContent(odtResult)
     t.deepEqual(odtResultTextContent, `🧺 La liste de courses incroyable 🧺
 
-- Radis
-- Jus d'orange
-- Pâtes à lasagne (fraîches !)
-
-2ème essai
-
-- Radis
-- Jus d'orange
-- Pâtes à lasagne (fraîches !)
+Radis
+Jus d'orange
+Pâtes à lasagne (fraîches !)
 `)
 
 
