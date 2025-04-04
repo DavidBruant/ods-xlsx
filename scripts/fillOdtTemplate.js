@@ -4,10 +4,15 @@ import { ZipReader, ZipWriter, BlobReader, BlobWriter, TextReader, Uint8ArrayRea
 import { DOMParser, Node, XMLSerializer } from '@xmldom/xmldom';
 
 import {traverse} from './DOMUtils.js'
+import makeManifestFile from './odf/makeManifestFile.js';
 
 // fillOdtTemplate, getOdtTemplate, getOdtTextContent
 
+/** @import {ODFManifest} from './odf/makeManifestFile.js' */
+
 /** @typedef {ArrayBuffer} ODTFile */
+
+const ODTMimetype = 'application/vnd.oasis.opendocument.text'
 
 /**
  * 
@@ -401,14 +406,11 @@ function fillTemplateElementWithData(element, data){
 
 /**
  * 
- * @param {string} contentXml 
+ * @param {Document} contentDocument 
  * @param {any} data 
  * @returns {string}
  */
-function fillOdtContent(contentXml, data) {
-    const parser = new DOMParser();
-
-    const contentDocument = parser.parseFromString(contentXml, 'text/xml');
+function fillOdtContent(contentDocument, data) {
 
     const odtTextElement = getODTTextElement(contentDocument)
 
@@ -438,42 +440,84 @@ async function transformOdt(odtTemplate, data) {
     // Créer un ZipWriter pour le nouveau fichier ODT
     const writer = new ZipWriter(new Uint8ArrayWriter());
 
+    /** @type {ODFManifest} */
+    const manifestFileData = {
+        mediaType: ODTMimetype,
+        version: '1.3', // default, but may be changed
+        fileEntries: []
+    }
+
+    const keptFiles = new Set(['content.xml', 'styles.xml', 'mimetype'])
+
+
     // Parcourir chaque entrée du fichier ODT
     for await (const entry of entries) {
-        //console.log('entry', entry.filename)
+        const filename = entry.filename
 
-        if (entry.filename === "content.xml") {
-            // Si l'entrée est content.xml, nous la modifions avec la fonction updateOdtContent
-            const contentXml = await entry.getData(new TextWriter());
-            
-            const updatedContentXml = fillOdtContent(contentXml, data);
-
-            // Ajouter le content.xml modifié au nouveau zip
-            await writer.add(entry.filename, new TextReader(updatedContentXml), {
-                lastModDate: entry.lastModDate,
-                level: 9
-            });
-        } else {
-            // Pour les autres fichiers, les copier tels quels
-            const blobWriter = new BlobWriter();
-            await entry.getData(blobWriter);
-            const blob = await blobWriter.getData();
-
+        // remove other files
+        if(!keptFiles.has(filename)){
+            // ignore, do not create a corresponding entry in the new zip
+        }
+        else{
+            let content;
             let options;
+            
+            switch(filename){
+                case 'mimetype':
+                    content = new TextReader(ODTMimetype)
+                    options = {
+                        level: 0,
+                        compressionMethod: 0,
+                        dataDescriptor: false,
+                        extendedTimestamp: false,
+                    }
+                    break;
+                case 'content.xml':
+                    const contentXml = await entry.getData(new TextWriter());
+                    const parser = new DOMParser();
+                    const contentDocument = parser.parseFromString(contentXml, 'text/xml');
+                    const updatedContentXml = fillOdtContent(contentDocument, data);
 
-            if(entry.filename === 'mimetype'){
-                options = {
-                    level: 0,
-                    compressionMethod: 0,
-                    dataDescriptor: false,
-                    extendedTimestamp: false,
-                }
+                    const docContentElement = contentDocument.getElementsByTagName('office:document-content')[0]
+                    const version = docContentElement.getAttribute('office:version')
+                    
+                    //console.log('version', version)
+                    manifestFileData.version = version 
+                    manifestFileData.fileEntries.push({
+                        fullPath: filename,
+                        mediaType: 'text/xml'
+                    })
+
+                    content = new TextReader(updatedContentXml)
+                    options = {
+                        lastModDate: entry.lastModDate,
+                        level: 9
+                    };
+                    
+                    break;
+                case 'styles.xml':
+                    const blobWriter = new BlobWriter();
+                    await entry.getData(blobWriter);
+                    const blob = await blobWriter.getData();
+        
+                    manifestFileData.fileEntries.push({
+                        fullPath: filename,
+                        mediaType: 'text/xml'
+                    })
+
+                    content = new BlobReader(blob)
+                    break;
+                default:
+                    throw new Error(`Unexpected file (${filename})`)
             }
 
-            // Ajouter l'entrée non modifiée au nouveau zip
-            await writer.add(entry.filename, new BlobReader(blob), options);
+            await writer.add(filename, content, options);
         }
+
     }
+
+    const manifestFileXml = makeManifestFile(manifestFileData)
+    await writer.add('META-INF/manifest.xml', new TextReader(manifestFileXml));
 
     await reader.close();
 
