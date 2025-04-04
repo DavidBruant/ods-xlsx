@@ -459,20 +459,24 @@ async function transformOdt(odtTemplate, data) {
             await entry.getData(blobWriter);
             const blob = await blobWriter.getData();
 
+            let options;
+
+            if(entry.filename === 'mimetype'){
+                options = {
+                    level: 0,
+                    compressionMethod: 0,
+                    dataDescriptor: false,
+                    extendedTimestamp: false,
+                }
+            }
+
             // Ajouter l'entrée non modifiée au nouveau zip
-            await writer.add(entry.filename, new BlobReader(blob), {
-                level: entry.filename === 'mimetype' ? 0 : 9,
-                compressionMethod: 0,
-                dataDescriptor: false,
-                extendedTimestamp: false,
-            });
+            await writer.add(entry.filename, new BlobReader(blob), options);
         }
     }
 
-    // Fermer le reader
     await reader.close();
 
-    // Générer et retourner le nouveau fichier ODT
     return writer.close();
 }
 
