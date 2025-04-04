@@ -10,17 +10,15 @@ import { Node } from '@xmldom/xmldom';
  * Traverses a DOM tree starting from the given element and applies the visit function
  * to each Element node encountered in tree order (depth-first).
  * 
- * @param {Element} element - The starting DOM Element for traversal
- * @param {Function} visit - Function to be called on each Element, receives the Element as its argument
+ * @param {Node} node
+ * @param {(n : Node) => void} visit
  */
-export function traverse(element, visit) {
-    const children = Array.from(element.childNodes)
-        .filter(child => child.nodeType === Node.ELEMENT_NODE);
-
-    for (const child of children) {
-        // @ts-ignore
+export function traverse(node, visit) {
+    //console.log('traverse', node.nodeType, node.nodeName)
+    
+    for (const child of Array.from(node.childNodes)) {
         traverse(child, visit);
     }
 
-    visit(element);
+    visit(node);
 }

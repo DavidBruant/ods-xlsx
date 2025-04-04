@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
-import { ZipReader, ZipWriter, BlobReader, BlobWriter, TextReader, Uint8ArrayReader, TextWriter, ZipReaderStream, ZipWriterStream, Uint8ArrayWriter } from '@zip.js/zip.js';
+import { ZipReader, ZipWriter, BlobReader, BlobWriter, TextReader, Uint8ArrayReader, TextWriter, Uint8ArrayWriter } from '@zip.js/zip.js';
 import { DOMParser, Node, XMLSerializer } from '@xmldom/xmldom';
 
 import {traverse} from './DOMUtils.js'
@@ -110,7 +110,7 @@ export async function getOdtTextContent(odtFile) {
  * @returns {TextPlaceToFill | undefined}
  */
 function findPlacesToFillInString(str) {
-    const matches = str.matchAll(/\{([^{]+?)\}/g)
+    const matches = str.matchAll(/\{([^{#\/]+?)\}/g)
 
     /** @type {TextPlaceToFill['expressions']} */
     const expressions = []
@@ -283,102 +283,107 @@ function findEachElementPair(element){
 
 /**
  * 
- * @param {Document} contentDocument 
+ * @param {Node} startNode 
+ * @param {string} iterableExpression 
+ * @param {string} itemExpression 
+ * @param {Node} endNode 
  * @param {any} data 
  */
-function fillEachIfExists(contentDocument, data){
-    const eachElementPair = findEachElementPair(contentDocument)
+function fillEachBlock(startNode, iterableExpression, itemExpression, endNode, data){
+    //console.log('fillEachBlock', iterableExpression, itemExpression)
+    //console.log('startNode', startNode.nodeType, startNode.nodeName)
+    //console.log('endNode', endNode.nodeType, endNode.nodeName)
 
-    if(eachElementPair){
-        const { iterableExpression, itemExpression, startElement, endElement } = eachElementPair
+    // find common ancestor
+    let commonAncestor
 
-        // find common ancestor
-        let commonAncestor
+    let startAncestor = startNode
+    let endAncestor = endNode
+    
+    const startAncestry = new Set([startAncestor])
+    const endAncestry = new Set([endAncestor]) 
 
-        let startAncestor = startElement
-        let endAncestor = endElement
-        
-        const startAncestry = new Set([startAncestor])
-        const endAncestry = new Set([endAncestor]) 
-
-        while(!startAncestry.has(endAncestor) && !endAncestry.has(startAncestor)){
-            if(startAncestor.parentNode){
-                startAncestor = startAncestor.parentNode
-                startAncestry.add(startAncestor)
-            }
-            if(endAncestor.parentNode){
-                endAncestor = endAncestor.parentNode
-                endAncestry.add(endAncestor)
-            }
+    while(!startAncestry.has(endAncestor) && !endAncestry.has(startAncestor)){
+        if(startAncestor.parentNode){
+            startAncestor = startAncestor.parentNode
+            startAncestry.add(startAncestor)
         }
-
-        if(startAncestry.has(endAncestor)){
-            commonAncestor = endAncestor
+        if(endAncestor.parentNode){
+            endAncestor = endAncestor.parentNode
+            endAncestry.add(endAncestor)
         }
-        else{
-            commonAncestor = startAncestor
-        }
+    }
 
-        //console.log('commonAncestor', commonAncestor.tagName)
-        //console.log('startAncestry', startAncestry.size, [...startAncestry].indexOf(commonAncestor))
-        //console.log('endAncestry', endAncestry.size, [...endAncestry].indexOf(commonAncestor))
-
-        const startAncestryToCommonAncestor = [...startAncestry].slice(0, [...startAncestry].indexOf(commonAncestor))
-        const endAncestryToCommonAncestor = [...endAncestry].slice(0, [...endAncestry].indexOf(commonAncestor))
-
-        const startChild = startAncestryToCommonAncestor.at(-1)
-        const endChild = endAncestryToCommonAncestor.at(-1)
-
-        //console.log('startChild', startChild.tagName)
-        //console.log('endChild', endChild.tagName)
-
-        // Find repeatable pattern and extract it in a documentFragment
-        const repeatedFragment = contentDocument.createDocumentFragment()
-
-        /** @type {Element[]} */
-        const repeatedPatternArray = []
-        let sibling = startChild.nextSibling
-
-        while(sibling !== endChild){
-            repeatedPatternArray.push(sibling)
-            sibling = sibling.nextSibling;
-        }
-
-        //console.log('repeatedPatternArray', repeatedPatternArray.length)
-
-        for(const sibling of repeatedPatternArray){
-            sibling.parentNode?.removeChild(sibling)
-            repeatedFragment.appendChild(sibling)
-        }
-
-        // Find the iterable in the data
-        // PPP eventually, evaluate the expression as a JS expression
-        const iterable = data[iterableExpression]
-        if(!iterable){
-            throw new TypeError(`Missing iterable (${iterableExpression})`)
-        }
-        if(typeof iterable[Symbol.iterator] !== 'function'){
-            throw new TypeError(`'${iterableExpression}' is not iterable`)
-        }
-
-        // create each loop result
-        // using a for-of loop to accept all iterable values
-        for(const item of iterable){
-            const itemFragment = repeatedFragment.cloneNode(true)
-            fillTemplateElementWithData(
-                // @ts-ignore
-                itemFragment, 
-                Object.assign({}, data, {[itemExpression]: item})
-            )
-            commonAncestor.insertBefore(itemFragment, endChild)
-        }
-
-        startChild.parentNode.removeChild(startChild)
-        endChild.parentNode.removeChild(endChild)
+    if(startAncestry.has(endAncestor)){
+        commonAncestor = endAncestor
     }
     else{
-        // nothing
+        commonAncestor = startAncestor
     }
+
+
+    //console.log('commonAncestor', commonAncestor.tagName)
+    //console.log('startAncestry', startAncestry.size, [...startAncestry].indexOf(commonAncestor))
+    //console.log('endAncestry', endAncestry.size, [...endAncestry].indexOf(commonAncestor))
+
+    const startAncestryToCommonAncestor = [...startAncestry].slice(0, [...startAncestry].indexOf(commonAncestor))
+    const endAncestryToCommonAncestor = [...endAncestry].slice(0, [...endAncestry].indexOf(commonAncestor))
+
+    const startChild = startAncestryToCommonAncestor.at(-1)
+    const endChild = endAncestryToCommonAncestor.at(-1)
+
+    //console.log('startChild', startChild.tagName)
+    //console.log('endChild', endChild.tagName)
+
+    // Find repeatable pattern and extract it in a documentFragment
+    // @ts-ignore
+    const repeatedFragment = startNode.ownerDocument.createDocumentFragment()
+
+    /** @type {Element[]} */
+    const repeatedPatternArray = []
+    let sibling = startChild.nextSibling
+
+    while(sibling !== endChild){
+        repeatedPatternArray.push(sibling)
+        sibling = sibling.nextSibling;
+    }
+
+
+    //console.log('repeatedPatternArray', repeatedPatternArray.length)
+
+    for(const sibling of repeatedPatternArray){
+        sibling.parentNode?.removeChild(sibling)
+        repeatedFragment.appendChild(sibling)
+    }
+
+    // Find the iterable in the data
+    // PPP eventually, evaluate the expression as a JS expression
+    const iterable = data[iterableExpression]
+    if(!iterable){
+        throw new TypeError(`Missing iterable (${iterableExpression})`)
+    }
+    if(typeof iterable[Symbol.iterator] !== 'function'){
+        throw new TypeError(`'${iterableExpression}' is not iterable`)
+    }
+
+    // create each loop result
+    // using a for-of loop to accept all iterable values
+    for(const item of iterable){
+        /** @type {DocumentFragment} */
+        // @ts-ignore
+        const itemFragment = repeatedFragment.cloneNode(true)
+
+        // recursive call to fillTemplatedOdtElement on itemFragment
+        fillTemplatedOdtElement(
+            itemFragment, 
+            Object.assign({}, data, {[itemExpression]: item})
+        )
+        // @ts-ignore
+        commonAncestor.insertBefore(itemFragment, endChild)
+    }
+
+    startChild.parentNode.removeChild(startChild)
+    endChild.parentNode.removeChild(endChild)
 }
 
 
@@ -402,6 +407,112 @@ function fillTemplateElementWithData(element, data){
     }
 }
 
+/**
+ * 
+ * @param {Element | DocumentFragment} rootElement 
+ * @param {any} data 
+ * @returns {void}
+ */
+function fillTemplatedOdtElement(rootElement, data){
+    //console.log('fillTemplatedOdtElement', rootElement.nodeType, rootElement.nodeName)
+
+    /** @type {Node | undefined} */
+    let eachBlockStartNode
+    /** @type {Node | undefined} */
+    let eachBlockEndNode
+
+    let nestedEach = 0
+
+    let iterableExpression, itemExpression;
+
+    // Traverse "in document order"
+
+    // @ts-ignore
+    traverse(rootElement, currentNode => {
+        const insideAnEachBlock = !!eachBlockStartNode
+
+        if(currentNode.nodeType === Node.TEXT_NODE){
+            const text = currentNode.textContent || ''
+
+            // looking for {#each x as y}
+            const eachStartRegex = /{#each\s+([^}]+?)\s+as\s+([^}]+?)\s*}/g;
+            const startMatches = [...text.matchAll(eachStartRegex)];
+
+            if(startMatches && startMatches.length >= 1){
+                if(insideAnEachBlock){
+                    nestedEach = nestedEach + 1
+                }
+                else{
+                    // PPP for now, consider only the first set of matches
+                    // eventually, consider all of them for in-text-node {#each}...{/each}
+                    let [_, _iterableExpression, _itemExpression] = startMatches[0]
+                    
+                    iterableExpression = _iterableExpression
+                    itemExpression = _itemExpression
+                    eachBlockStartNode = currentNode
+                }
+            }
+
+            // trying to find an {/each}
+            const eachEndRegex = /{\/each}/g
+            const endMatches = [...text.matchAll(eachEndRegex)];
+
+            if(endMatches && endMatches.length >= 1){                    
+                if(!eachBlockStartNode)
+                    throw new TypeError(`{/each} found without corresponding opening {#each x as y}`)
+                
+                if(nestedEach >= 1){
+                    // ignore because it will be treated as part of the outer {#each}
+                    nestedEach = nestedEach - 1
+                }
+                else{
+                    eachBlockEndNode = currentNode
+                    
+                    // found an #each and its corresponding /each
+                    // execute replacement loop
+                    fillEachBlock(eachBlockStartNode, iterableExpression, itemExpression, eachBlockEndNode, data)
+
+                    eachBlockStartNode = undefined
+                    iterableExpression = undefined
+                    itemExpression = undefined 
+                    eachBlockEndNode = undefined
+                }
+            }
+
+
+            // Looking for variables for substitutions
+            if(!insideAnEachBlock){
+                if (currentNode.data) {
+                    const placesToFill = findPlacesToFillInString(currentNode.data)
+
+                    if(placesToFill){
+                        const newText = placesToFill.fill(data)
+                        const newTextNode = currentNode.ownerDocument?.createTextNode(newText)
+                        currentNode.parentNode?.replaceChild(newTextNode, currentNode)
+                    }
+                }
+            }
+            else{
+                // ignore because it will be treated as part of the {#each} block
+            }
+        }
+
+        if(currentNode.nodeType === Node.ATTRIBUTE_NODE){
+            // Looking for variables for substitutions
+            if(!insideAnEachBlock){
+                if (currentNode.value) {
+                    const placesToFill = findPlacesToFillInString(currentNode.value)
+                    if(placesToFill){
+                        currentNode.value = placesToFill.fill(data)
+                    }
+                }
+            }
+            else{
+                // ignore because it will be treated as part of the {#each} block
+            }
+        }
+    })
+}
 
 
 /**
@@ -414,14 +525,11 @@ function fillOdtContent(contentDocument, data) {
 
     const odtTextElement = getODTTextElement(contentDocument)
 
-    fillEachIfExists(contentDocument, data) 
-
-    fillTemplateElementWithData(odtTextElement, data)
+    fillTemplatedOdtElement(odtTextElement, data) 
 
     const serializer = new XMLSerializer()
 
     return serializer.serializeToString(contentDocument)
-
 }
 
 
@@ -430,7 +538,7 @@ function fillOdtContent(contentDocument, data) {
  * @param {any} data 
  * @returns {Promise<ODTFile>}
  */
-async function transformOdt(odtTemplate, data) {
+export async function fillOdtTemplate(odtTemplate, data) {
 
     const reader = new ZipReader(new Uint8ArrayReader(new Uint8Array(odtTemplate)));
 
@@ -523,19 +631,6 @@ async function transformOdt(odtTemplate, data) {
 
     return writer.close();
 }
-
-
-/**
- * @template T
- * @param {T} data
- * @param {ODTFile} odtTemplate
- * @returns {Promise<ODTFile>}
- */
-export async function fillOdtTemplate(odtTemplate, data) {
-    return transformOdt(odtTemplate, data)
-}
-
-
 
 
 

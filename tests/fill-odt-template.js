@@ -74,7 +74,7 @@ Pâtes à lasagne (fraîches !)
 
 
 
-test('basic template filling with {#each} generating a list', async t => {
+test('template filling with {#each} generating a list', async t => {
     const templatePath = join(import.meta.dirname, './data/liste-courses.odt')
     const templateContent = `🧺 La liste de courses incroyable 🧺
 
@@ -107,5 +107,57 @@ test('basic template filling with {#each} generating a list', async t => {
 - Pâtes à lasagne (fraîches !)
 `)
 
+
+});
+
+
+test('template filling with 2 sequential {#each}', async t => {
+    const templatePath = join(import.meta.dirname, './data/liste-fruits-et-légumes.odt')
+    const templateContent = `Liste de fruits et légumes
+
+Fruits
+{#each fruits as fruit}
+{fruit}
+{/each}
+
+Légumes
+{#each légumes as légume}
+{légume}
+{/each}
+`
+
+	const data = {
+        fruits : [
+            'Pastèque 🍉',
+            `Kiwi 🥝`,
+            'Banane 🍌'
+        ],
+        légumes: [
+            'Champignon 🍄‍🟫',
+            'Avocat 🥑',
+            'Poivron 🫑'
+        ]
+    }
+
+    const odtTemplate = await getOdtTemplate(templatePath)
+
+    const templateTextContent = await getOdtTextContent(odtTemplate)    
+    t.deepEqual(templateTextContent, templateContent)
+
+    const odtResult = await fillOdtTemplate(odtTemplate, data)
+
+    const odtResultTextContent = await getOdtTextContent(odtResult)
+    t.deepEqual(odtResultTextContent, `Liste de fruits et légumes
+
+Fruits
+Pastèque 🍉
+Kiwi 🥝
+Banane 🍌
+
+Légumes
+Champignon 🍄‍🟫
+Avocat 🥑
+Poivron 🫑
+`)
 
 });
