@@ -22,7 +22,7 @@ const data = {
 }
 */
 
-
+/*
 const templatePath = join(import.meta.dirname, '../tests/data/liste-fruits-et-légumes.odt')
 const data = {
     fruits : [
@@ -34,6 +34,18 @@ const data = {
         'Champignon 🍄‍🟫',
         'Avocat 🥑',
         'Poivron 🫑'
+    ]
+}*/
+
+const templatePath = join(import.meta.dirname, '../tests/data/tableau-simple.odt')
+const data = {
+    annéeConsos : [
+        { année: 1970, conso: 36252.637},
+        { année: 1980, conso: 43328.78},
+        { année: 1990, conso: 46971.94},
+        { année: 2000, conso: 53147.277},
+        { année: 2010, conso: 48062.32},
+        { année: 2020, conso: 37859.246},
     ]
 }
 

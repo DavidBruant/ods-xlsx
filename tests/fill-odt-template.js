@@ -247,3 +247,68 @@ Hiver
 `)
 
 });
+
+
+
+test('template filling of a table', async t => {
+    const templatePath = join(import.meta.dirname, './data/tableau-simple.odt')
+    const templateContent = `Évolution énergie en kWh par personne en France
+
+Année
+Énergie par personne
+{#each annéeConsos as annéeConso}
+
+{annéeConso.année}
+{annéeConso.conso}
+{/each}
+`
+
+    /*
+    Data sources:
+
+    U.S. Energy Information Administration (2023)Energy Institute - 
+    Statistical Review of World Energy (2024)Population based on various sources (2023)
+
+    – with major processing by Our World in Data
+    */
+	const data = {
+        annéeConsos : [
+            { année: 1970, conso: 36252.637},
+            { année: 1980, conso: 43328.78},
+            { année: 1990, conso: 46971.94},
+            { année: 2000, conso: 53147.277},
+            { année: 2010, conso: 48062.32},
+            { année: 2020, conso: 37859.246},
+        ]
+    }
+
+    const odtTemplate = await getOdtTemplate(templatePath)
+
+    const templateTextContent = await getOdtTextContent(odtTemplate)    
+    t.deepEqual(templateTextContent.trim(), templateContent.trim(), 'reconnaissance du template')
+
+    const odtResult = await fillOdtTemplate(odtTemplate, data)
+
+    const odtResultTextContent = await getOdtTextContent(odtResult)
+    t.deepEqual(odtResultTextContent.trim(), `Évolution énergie en kWh par personne en France
+
+Année
+Énergie par personne
+1970
+36252.637
+1980
+43328.78
+1990
+46971.94
+2000
+53147.277
+2010
+48062.32
+2020
+37859.246
+`.trim())
+
+});
+
+
+
