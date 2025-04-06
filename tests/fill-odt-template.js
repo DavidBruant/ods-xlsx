@@ -1,12 +1,12 @@
 import test from 'ava';
 import {join} from 'node:path';
 
-import {fillOdtTemplate, getOdtTemplate, getOdtTextContent} from '../scripts/fillOdtTemplate.js'
+import {getOdtTemplate, getOdtTextContent} from '../scripts/odf/odtTemplate-forNode.js'
+
+import {fillOdtTemplate} from '../scripts/node.js'
 
 
 test('basic template filling with variable substitution', async t => {
-    
-
     const templatePath = join(import.meta.dirname, './data/template-anniversaire.odt')
     const templateContent = `Yo {nom} ! 
 Tu es né.e le {dateNaissance}

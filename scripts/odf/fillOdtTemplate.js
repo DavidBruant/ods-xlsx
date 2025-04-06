@@ -1,97 +1,17 @@
-import { readFile } from 'node:fs/promises'
-
 import { ZipReader, ZipWriter, BlobReader, BlobWriter, TextReader, Uint8ArrayReader, TextWriter, Uint8ArrayWriter } from '@zip.js/zip.js';
-import { DOMParser, Node, XMLSerializer } from '@xmldom/xmldom';
 
-import {traverse} from './DOMUtils.js'
-import makeManifestFile from './odf/makeManifestFile.js';
+import {traverse} from '../DOMUtils.js'
+import makeManifestFile from './makeManifestFile.js';
 
 // fillOdtTemplate, getOdtTemplate, getOdtTextContent
 
-/** @import {ODFManifest} from './odf/makeManifestFile.js' */
+/** @import {ODFManifest} from './makeManifestFile.js' */
 
 /** @typedef {ArrayBuffer} ODTFile */
 
 const ODTMimetype = 'application/vnd.oasis.opendocument.text'
 
-/**
- * 
- * @param {string} path 
- * @returns {Promise<ODTFile>}
- */
-export async function getOdtTemplate(path) {
-    const fileBuffer = await readFile(path)
-    return fileBuffer.buffer
-}
 
-
-/**
- * @param {ODTFile} odtFile 
- * @returns {Promise<Document>}
- */
-async function getContentDocument(odtFile) {
-    const reader = new ZipReader(new Uint8ArrayReader(new Uint8Array(odtFile)));
-
-    const entries = await reader.getEntries();
-
-    const contentEntry = entries.find(entry => entry.filename === 'content.xml');
-
-    if (!contentEntry) {
-        throw new Error('No content.xml found in the ODT file');
-    }
-
-    // @ts-ignore
-    const contentText = await contentEntry.getData(new TextWriter());
-    await reader.close();
-
-    const parser = new DOMParser();
-
-    return parser.parseFromString(contentText, 'text/xml');
-}
-
-/**
- * 
- * @param {Document} odtDocument 
- * @returns {Element}
- */
-function getODTTextElement(odtDocument) {
-    return odtDocument.getElementsByTagName('office:body')[0]
-        .getElementsByTagName('office:text')[0]
-}
-
-
-/**
- * Extracts plain text content from an ODT file, preserving line breaks
- * @param {ArrayBuffer} odtFile - The ODT file as an ArrayBuffer
- * @returns {Promise<string>} Extracted text content
- */
-export async function getOdtTextContent(odtFile) {
-    const contentDocument = await getContentDocument(odtFile)
-    const odtTextElement = getODTTextElement(contentDocument)
-
-    /**
-     * 
-     * @param {Element} element 
-     * @returns {string}
-     */
-    function getElementTextContent(element){
-        //console.log('tagName', element.tagName)
-        if(element.tagName === 'text:h' || element.tagName === 'text:p')
-            return element.textContent + '\n'
-        else{
-            const descendantTexts = Array.from(element.childNodes)
-                .filter(n => n.nodeType === Node.ELEMENT_NODE)
-                .map(getElementTextContent)
-
-            if(element.tagName === 'text:list-item')
-                return `- ${descendantTexts.join('')}`
-
-            return descendantTexts.join('')
-        }
-    }
-
-    return getElementTextContent(odtTextElement)
-}
 
 
 // For a given string, split it into fixed parts and parts to replace
@@ -199,8 +119,9 @@ function findPlacesToFillInString(str) {
  * @param {string} itemExpression 
  * @param {Node} endNode 
  * @param {any} data 
+ * @param {typeof Node} Node
  */
-function fillEachBlock(startNode, iterableExpression, itemExpression, endNode, data){
+function fillEachBlock(startNode, iterableExpression, itemExpression, endNode, data, Node){
     //console.log('fillEachBlock', iterableExpression, itemExpression)
     //console.log('startNode', startNode.nodeType, startNode.nodeName)
     //console.log('endNode', endNode.nodeType, endNode.nodeName)
@@ -287,7 +208,8 @@ function fillEachBlock(startNode, iterableExpression, itemExpression, endNode, d
         // recursive call to fillTemplatedOdtElement on itemFragment
         fillTemplatedOdtElement(
             itemFragment, 
-            Object.assign({}, data, {[itemExpression]: item})
+            Object.assign({}, data, {[itemExpression]: item}),
+            Node
         )
         // @ts-ignore
         commonAncestor.insertBefore(itemFragment, endChild)
@@ -302,9 +224,10 @@ function fillEachBlock(startNode, iterableExpression, itemExpression, endNode, d
  * 
  * @param {Element | DocumentFragment} rootElement 
  * @param {any} data 
+ * @param {typeof Node} Node 
  * @returns {void}
  */
-function fillTemplatedOdtElement(rootElement, data){
+function fillTemplatedOdtElement(rootElement, data, Node){
     //console.log('fillTemplatedOdtElement', rootElement.nodeType, rootElement.nodeName)
 
     /** @type {Node | undefined} */
@@ -361,7 +284,7 @@ function fillTemplatedOdtElement(rootElement, data){
                     
                     // found an #each and its corresponding /each
                     // execute replacement loop
-                    fillEachBlock(eachBlockStartNode, iterableExpression, itemExpression, eachBlockEndNode, data)
+                    fillEachBlock(eachBlockStartNode, iterableExpression, itemExpression, eachBlockEndNode, data, Node)
 
                     eachBlockStartNode = undefined
                     iterableExpression = undefined
@@ -406,30 +329,16 @@ function fillTemplatedOdtElement(rootElement, data){
 }
 
 
-/**
- * 
- * @param {Document} contentDocument 
- * @param {any} data 
- * @returns {string}
- */
-function fillOdtContent(contentDocument, data) {
-
-    const odtTextElement = getODTTextElement(contentDocument)
-
-    fillTemplatedOdtElement(odtTextElement, data) 
-
-    const serializer = new XMLSerializer()
-
-    return serializer.serializeToString(contentDocument)
-}
-
 
 /**
  * @param {ODTFile} odtTemplate
  * @param {any} data 
+ * @param {Function} parseXML 
+ * @param {typeof XMLSerializer.prototype.serializeToString} serializeToString 
+ * @param {typeof Node} Node
  * @returns {Promise<ODTFile>}
  */
-export async function fillOdtTemplate(odtTemplate, data) {
+export default async function _fillOdtTemplate(odtTemplate, data, parseXML, serializeToString, Node) {
 
     const reader = new ZipReader(new Uint8ArrayReader(new Uint8Array(odtTemplate)));
 
@@ -473,9 +382,9 @@ export async function fillOdtTemplate(odtTemplate, data) {
                     break;
                 case 'content.xml':
                     const contentXml = await entry.getData(new TextWriter());
-                    const parser = new DOMParser();
-                    const contentDocument = parser.parseFromString(contentXml, 'text/xml');
-                    const updatedContentXml = fillOdtContent(contentDocument, data);
+                    const contentDocument = parseXML(contentXml);
+                    fillTemplatedOdtElement(contentDocument, data, Node) 
+                    const updatedContentXml = serializeToString(contentDocument)
 
                     const docContentElement = contentDocument.getElementsByTagName('office:document-content')[0]
                     const version = docContentElement.getAttribute('office:version')
