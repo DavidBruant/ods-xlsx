@@ -21,7 +21,7 @@ Bonjoir ☀️
 
     const odtTemplate = await getOdtTemplate(templatePath)
     const templateTextContent = await getOdtTextContent(odtTemplate)
-    t.deepEqual(templateTextContent, templateContent)
+    t.deepEqual(templateTextContent, templateContent, 'reconnaissance du template')
 
     const odtResult = await fillOdtTemplate(odtTemplate, data)
 
@@ -57,7 +57,7 @@ test('basic template filling with {#each}', async t => {
 
     const templateTextContent = await getOdtTextContent(odtTemplate)
 
-    t.deepEqual(templateTextContent, templateContent)
+    t.deepEqual(templateTextContent, templateContent, 'reconnaissance du template')
 
     const odtResult = await fillOdtTemplate(odtTemplate, data)
 
@@ -95,7 +95,7 @@ test('template filling with {#each} generating a list', async t => {
 
     const templateTextContent = await getOdtTextContent(odtTemplate)
 
-    t.deepEqual(templateTextContent, templateContent)
+    t.deepEqual(templateTextContent, templateContent, 'reconnaissance du template')
 
     const odtResult = await fillOdtTemplate(odtTemplate, data)
 
@@ -142,7 +142,7 @@ Légumes
     const odtTemplate = await getOdtTemplate(templatePath)
 
     const templateTextContent = await getOdtTextContent(odtTemplate)    
-    t.deepEqual(templateTextContent, templateContent)
+    t.deepEqual(templateTextContent, templateContent, 'reconnaissance du template')
 
     const odtResult = await fillOdtTemplate(odtTemplate, data)
 
@@ -158,6 +158,92 @@ Légumes
 Champignon 🍄‍🟫
 Avocat 🥑
 Poivron 🫑
+`)
+
+});
+
+
+
+test('template filling with nested {#each}s', async t => {
+    const templatePath = join(import.meta.dirname, './data/légumes-de-saison.odt')
+    const templateContent = `Légumes de saison
+
+{#each légumesSaison as saisonLégumes}
+{saisonLégumes.saison}
+- {#each saisonLégumes.légumes as légume}
+- {légume}
+- {/each}
+
+{/each}
+`
+
+	const data = {
+        légumesSaison : [
+            {
+                saison: 'Printemps',
+                légumes: [
+                    'Asperge',
+                    'Betterave',
+                    'Blette'
+                ]
+            },
+            {
+                saison: 'Été',
+                légumes: [
+                    'Courgette',
+                    'Poivron',
+                    'Laitue'
+                ]
+            },
+            {
+                saison: 'Automne',
+                légumes: [
+                    'Poireau',
+                    'Potiron',
+                    'Brocoli'
+                ]
+            },
+            {
+                saison: 'Hiver',
+                légumes: [
+                    'Radis',
+                    'Chou de Bruxelles',
+                    'Frisée'
+                ]
+            }
+        ]
+    }
+
+    const odtTemplate = await getOdtTemplate(templatePath)
+
+    const templateTextContent = await getOdtTextContent(odtTemplate)    
+    t.deepEqual(templateTextContent, templateContent, 'reconnaissance du template')
+
+    const odtResult = await fillOdtTemplate(odtTemplate, data)
+
+    const odtResultTextContent = await getOdtTextContent(odtResult)
+    t.deepEqual(odtResultTextContent, `Légumes de saison
+
+Printemps
+- Asperge
+- Betterave
+- Blette
+
+Été
+- Courgette
+- Poivron
+- Laitue
+
+Automne
+- Poireau
+- Potiron
+- Brocoli
+
+Hiver
+- Radis
+- Chou de Bruxelles
+- Frisée
+
 `)
 
 });

@@ -94,8 +94,6 @@ export async function getOdtTextContent(odtFile) {
 }
 
 
-
-
 // For a given string, split it into fixed parts and parts to replace
 
 /**
@@ -103,6 +101,32 @@ export async function getOdtTextContent(odtFile) {
  * @property { {expression: string, replacedString:string}[] } expressions
  * @property {(values: any) => void} fill
  */
+
+
+/**
+ * PPP : for now, expression is expected to be only an object property name or a dot-path
+ * in the future, it will certainly be a JavaScript expression
+ * securely evaluated within an hardernedJS Compartment https://hardenedjs.org/#compartment
+ * @param {string} expression 
+ * @param {any} context - data / global object
+ * @return {any}
+ */
+function evaludateTemplateExpression(expression, context){
+    const parts = expression.trim().split('.')
+
+    let value = context;
+
+    for(const part of parts){
+        if(!value){
+            return undefined
+        }
+        else{
+            value = value[part]
+        }
+    }
+
+    return value
+}
 
 
 /**
@@ -132,10 +156,8 @@ function findPlacesToFillInString(str) {
         if (fixedPart.length >= 1)
             parts.push(fixedPart)
 
-        // PPP : for now, expression is expected to be only an object property name
-        // in the future, it will certainly be a JavaScript expression
-        // securely evaluated within an hardernedJS Compartment https://hardenedjs.org/#compartment
-        parts.push(data => data[expression])
+        
+        parts.push(data => evaludateTemplateExpression(expression, data))
 
         remaining = newRemaining
     }
@@ -166,117 +188,6 @@ function findPlacesToFillInString(str) {
     }
 
 
-}
-
-
-/**
- * @param {Node} node
- * @returns {TextPlaceToFill[] | undefined}
- */
-function findPlacesToFill(node) {
-    /** @type {string} */
-    let textCandidate
-
-    switch (node.nodeType) {
-        case Node.ATTRIBUTE_NODE:
-            // @ts-ignore
-            textCandidate = node.value
-
-            if (textCandidate) {
-                const placesToFill = findPlacesToFillInString(textCandidate)
-                return placesToFill ? [{
-                    expressions: placesToFill.expressions,
-                    fill: data => {
-                        node.value = placesToFill.fill(data)
-                    }
-                }] : undefined
-            }
-
-            break;
-        case Node.TEXT_NODE:
-            // @ts-ignore
-            textCandidate = node.data
-
-            if (textCandidate) {
-                const placesToFill = findPlacesToFillInString(textCandidate)
-                return placesToFill ? [{
-                    expressions: placesToFill.expressions,
-                    fill: data => {
-                        const newText = placesToFill.fill(data)
-                        const newTextNode = node.ownerDocument?.createTextNode(newText)
-                        node.parentNode?.replaceChild(newTextNode, node)
-                    }
-                }] : undefined
-            }
-
-            break;
-
-        default:
-            if (node.childNodes && node.childNodes.length >= 1) {
-
-                return [...node.childNodes]
-                    .map(findPlacesToFill)
-                    .filter(x => x !== undefined)
-                    .flat()
-            }
-
-    }
-
-}
-
-/**
- * @param {Element} element 
- */
-function findEachElementPair(element){
-
-    /** @type {Element | undefined} */
-    let startElement
-    /** @type {Element | undefined} */
-    let endElement
-
-    let iterableExpression, itemExpression;
-
-    traverse(element, el => {
-        //console.log('traverse', el.nodeType, el.nodeName)
-        if(Array.from(el.childNodes).some(n => n.nodeType === Node.ELEMENT_NODE)){
-            //console.log('skip')
-            // skip
-        }
-        else{
-            const text = el.textContent || ''
-            //console.log('text', text)
-
-            const eachStartRegex = /{#each\s+([^}]+?)\s+as\s+([^}]+?)\s*}/g;
-            const startMatches = [...text.matchAll(eachStartRegex)];
-
-            if(startMatches && startMatches.length >= 1){
-                // only consider first match and ignore others for now
-                let [_, _iterableExpression, _itemExpression] = startMatches[0]
-                
-                iterableExpression = _iterableExpression
-                itemExpression = _itemExpression
-                startElement = el
-            }
-
-            const eachEndRegex = /{\/each}/g
-            const endMatches = [...text.matchAll(eachEndRegex)];
-
-            if(endMatches && endMatches.length >= 1){
-                endElement = el
-            }
-        }
-    })
-
-    //console.log('startElement', startElement)
-
-    if(startElement && endElement){
-        return {
-            startElement, 
-            iterableExpression, 
-            itemExpression, 
-            endElement
-        }
-    }
 }
 
 
@@ -358,7 +269,7 @@ function fillEachBlock(startNode, iterableExpression, itemExpression, endNode, d
 
     // Find the iterable in the data
     // PPP eventually, evaluate the expression as a JS expression
-    const iterable = data[iterableExpression]
+    const iterable = evaludateTemplateExpression(iterableExpression, data)
     if(!iterable){
         throw new TypeError(`Missing iterable (${iterableExpression})`)
     }
@@ -386,26 +297,6 @@ function fillEachBlock(startNode, iterableExpression, itemExpression, endNode, d
     endChild.parentNode.removeChild(endChild)
 }
 
-
-/**
- * 
- * @param {Node} element 
- * @param {any} data 
- * @returns {void}
- */
-function fillTemplateElementWithData(element, data){
-    // trouver tous les endroits où il y a des choses à remplir
-    const placesToFill = findPlacesToFill(element)
-
-    if (placesToFill) {
-        //console.log('placesToFill', placesToFill)
-
-        // remplir tous les endroits à remplir
-        for (const placeToFill of placesToFill) {
-            placeToFill.fill(data)
-        }
-    }
-}
 
 /**
  * 
