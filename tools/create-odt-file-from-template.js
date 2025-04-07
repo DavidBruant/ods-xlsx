@@ -1,6 +1,7 @@
 import {join} from 'node:path';
 
-import {fillOdtTemplate, getOdtTemplate} from '../scripts/odf/fillOdtTemplate.js'
+import {getOdtTemplate} from '../scripts/odf/odtTemplate-forNode.js'
+import {fillOdtTemplate} from '../scripts/node.js'
 
 /*
 const templatePath = join(import.meta.dirname, '../tests/data/template-anniversaire.odt')

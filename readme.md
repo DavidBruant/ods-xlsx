@@ -28,11 +28,11 @@ npm i https://github.com/DavidBruant/ods-xlsx.git#v0.11.0
 import {tableRawContentToObjects, tableWithoutEmptyRows, getODSTableRawContent} from 'ods-xlsx'
 
 /**
- * @param {File} file - an .ods file like the ones you get from an <input type=file>
+ * @param {ArrayBuffer} odsFile - content of an .ods file
  * @return {Promise<any[]>}
  */ 
-async function getFileData(file){
-    return tableRawContent
+async function getFileData(odsFile){
+    return getODSTableRawContent(odsFile)
         .then(tableWithoutEmptyRows)
         .then(tableRawContentToObjects)
 }
@@ -44,7 +44,7 @@ the **values** are automatically converted from the .ods or .xlsx files (which t
 to the appropriate JavaScript value
 
 
-#### Basic - creating an ods file
+### Basic - creating an ods file
 
 ```js
 import {createOdsFile} from 'ods-xlsx'
@@ -80,9 +80,51 @@ const ods = await createOdsFile(content)
 (and there is a tool to test file creation:
 `node tools/create-an-ods-file.js > yo.ods`)
 
-### Low-level
 
-See exports
+### Filling an .odt template
+
+odf.js proposes a template syntax
+
+In an .odt file, write the following:
+
+```txt
+Hey {nom}! 
+
+Your birthdate is {dateNaissance}
+```
+
+And then run the code:
+
+
+```js
+import {join} from 'node:path';
+
+import {getOdtTemplate} from '../scripts/odf/odtTemplate-forNode.js'
+import {fillOdtTemplate} from '../scripts/node.js'
+
+// replace with your template path
+const templatePath = join(import.meta.dirname, './tests/data/template-anniversaire.odt')
+const data = {
+    nom: 'David Bruant',
+    dateNaissance: '8 mars 1987'
+}
+
+const odtTemplate = await getOdtTemplate(templatePath)
+const odtResult = await fillOdtTemplate(odtTemplate, data)
+
+process.stdout.write(new Uint8Array(odtResult))
+```
+
+There are also loops in the form:
+
+```txt
+- {#each listeCourses as élément}
+- {élément}
+- {/each}
+```
+
+They can be used to generate lists or tables in .odt files from data and a template using this syntax
+
 
 ### Demo
 
