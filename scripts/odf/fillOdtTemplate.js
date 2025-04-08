@@ -362,6 +362,8 @@ export default async function _fillOdtTemplate(odtTemplate, data, parseXML, seri
     for await (const entry of entries) {
         const filename = entry.filename
 
+        //console.log('entry', filename, entry.directory)
+
         // remove other files
         if(!keptFiles.has(filename)){
             // ignore, do not create a corresponding entry in the new zip

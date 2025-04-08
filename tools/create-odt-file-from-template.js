@@ -1,3 +1,4 @@
+import {writeFile} from 'node:fs/promises'
 import {join} from 'node:path';
 
 import {getOdtTemplate} from '../scripts/odf/odtTemplate-forNode.js'
@@ -38,6 +39,7 @@ const data = {
     ]
 }*/
 
+
 const templatePath = join(import.meta.dirname, '../tests/data/tableau-simple.odt')
 const data = {
     annéeConsos : [
@@ -54,4 +56,4 @@ const data = {
 const odtTemplate = await getOdtTemplate(templatePath)
 const odtResult = await fillOdtTemplate(odtTemplate, data)
 
-process.stdout.write(new Uint8Array(odtResult))
+writeFile('yo.odt', new Uint8Array(odtResult))
