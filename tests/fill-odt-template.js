@@ -323,7 +323,7 @@ test('template filling preserves images', async t => {
     const odtTemplate = await getOdtTemplate(templatePath)
     const templateEntries = await listZipEntries(odtTemplate)
 
-    console.log('templateEntries', templateEntries.map(({filename, directory}) => ({filename, directory})))
+    //console.log('templateEntries', templateEntries.map(({filename, directory}) => ({filename, directory})))
 
     t.assert(
         templateEntries.find(entry => entry.filename.startsWith('Pictures/')), 
@@ -333,7 +333,7 @@ test('template filling preserves images', async t => {
     const odtResult = await fillOdtTemplate(odtTemplate, data)
     const resultEntries = await listZipEntries(odtResult)
 
-    console.log('resultEntries', resultEntries.map(({filename, directory}) => ({filename, directory})))
+    //console.log('resultEntries', resultEntries.map(({filename, directory}) => ({filename, directory})))
 
     
     t.assert(

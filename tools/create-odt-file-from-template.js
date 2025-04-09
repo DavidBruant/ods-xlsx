@@ -40,6 +40,7 @@ const data = {
 }*/
 
 
+/*
 const templatePath = join(import.meta.dirname, '../tests/data/tableau-simple.odt')
 const data = {
     annéeConsos : [
@@ -51,7 +52,13 @@ const data = {
         { année: 2020, conso: 37859.246},
     ]
 }
+*/
 
+const templatePath = join(import.meta.dirname, '../tests/data/template-avec-image.odt')
+
+const data = {
+    commentaire : `J'adooooooore 🤩 West covinaaaaaaaaaaa 🎶`
+}
 
 const odtTemplate = await getOdtTemplate(templatePath)
 const odtResult = await fillOdtTemplate(odtTemplate, data)
